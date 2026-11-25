@@ -32,9 +32,7 @@ $capabilities = [
         'riskbitmask'  => RISK_PERSONAL,
         'captype'      => 'read',
         'contextlevel' => CONTEXT_SYSTEM,
-        'archetypes'   => [
-            'user' => CAP_ALLOW,
-        ],
+        'archetypes'   => [],
     ],
     'local/esoe:leerexpedienteajeno' => [
         'riskbitmask'  => RISK_PERSONAL,

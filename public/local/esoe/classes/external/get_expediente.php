@@ -96,7 +96,7 @@ class get_expediente extends external_api {
         }
 
         $usuario = core_user::get_user($userid, '*', MUST_EXIST);
-        core_user::require_active_user($usuario);
+        core_user::require_active_user($usuario, true, true);
 
         $notas = self::notas_por_curso($userid);
         $cursos = [];
@@ -157,6 +157,9 @@ class get_expediente extends external_api {
 
         $notas = [];
         foreach ($informe->setup_courses_data(true) as $fila) {
+            if ($fila['finalgrade'] === null) {
+                continue;
+            }
             $notas[(int) $fila['course']->id] = grade_format_gradevalue(
                 $fila['finalgrade'],
                 $fila['courseitem'],

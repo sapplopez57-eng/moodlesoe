@@ -89,18 +89,10 @@ class find_user extends external_api {
             return $vacio;
         }
 
-        $comparacion = $DB->sql_equal($campo, ':buscado', false, false);
-        $condicion = "{$comparacion} AND deleted = 0 AND suspended = 0 AND id <> :invitado";
-        $coincidencias = $DB->get_records_select(
-            'user',
-            $condicion,
-            ['buscado' => $buscado, 'invitado' => (int) $DB->get_field('user', 'id', ['username' => 'guest'])],
-            '',
-            'id, firstname, lastname, firstnamephonetic, lastnamephonetic, middlename, alternatename',
-            0,
-            2
-        );
-
+        $coincidencias = self::coincidencias($campo, $buscado, true);
+        if ($coincidencias === []) {
+            $coincidencias = self::coincidencias($campo, $buscado, false);
+        }
         if (count($coincidencias) !== 1) {
             return $vacio;
         }
@@ -112,6 +104,49 @@ class find_user extends external_api {
             'nombrecompleto' => fullname($usuario),
             'coincidencia'   => $campo === 'email' ? 'CORREO' : 'IDENTIDAD',
         ];
+    }
+
+    /**
+     * Cuentas activas de este sitio cuyo campo coincide con el valor buscado.
+     *
+     * Primero se intenta la comparacion exacta, que puede servirse con el indice de email o
+     * de idnumber. Solo si no da nada se repite sin distinguir mayusculas, que es lo que
+     * hace la plataforma y por tanto hay que conservar, aunque esa segunda consulta no use
+     * indice. Los acentos si se distinguen: en un numero de identidad no son una variante
+     * legitima y confundirlos juntaria valores distintos.
+     *
+     * Se excluyen las cuentas borradas, suspendidas, sin confirmar, el invitado y las de
+     * otros servidores MNet, porque el puente resuelve personal de esta institucion.
+     *
+     * @param string $campo Campo de busqueda ya validado.
+     * @param string $buscado Valor exacto que se busca.
+     * @param bool $exacto Verdadero para distinguir mayusculas.
+     * @return array
+     */
+    private static function coincidencias(string $campo, string $buscado, bool $exacto): array {
+        global $CFG, $DB;
+
+        $comparacion = $DB->sql_equal($campo, ':buscado', $exacto, true);
+        $condicion = "{$comparacion} AND deleted = 0 AND suspended = 0 AND confirmed = 1 AND id <> :invitado";
+        $parametros = [
+            'buscado'  => $buscado,
+            'invitado' => (int) $DB->get_field('user', 'id', ['username' => 'guest']),
+        ];
+        $local = isset($CFG->mnet_localhost_id) ? (int) $CFG->mnet_localhost_id : 0;
+        if ($local > 0) {
+            $condicion .= ' AND mnethostid = :local';
+            $parametros['local'] = $local;
+        }
+
+        return $DB->get_records_select(
+            'user',
+            $condicion,
+            $parametros,
+            '',
+            'id, firstname, lastname, firstnamephonetic, lastnamephonetic, middlename, alternatename',
+            0,
+            2
+        );
     }
 
     /**
